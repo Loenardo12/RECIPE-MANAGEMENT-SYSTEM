@@ -1,0 +1,607 @@
+openapi: 3.0.3
+info:
+  title: Sistem Manajemen Resep Masakan API
+  description: |
+    REST API untuk mengelola resep masakan.
+    
+    **Framework:** Laravel 11  
+    **Autentikasi:** Laravel Sanctum (Bearer Token)
+    
+    ## Cara Penggunaan
+    1. Register akun baru via `/api/register` ATAU Login via `/api/login`
+    2. Copy nilai `token` dari response
+    3. Klik tombol **Authorize** di atas, masukkan token dengan format: `Bearer <token>`
+    4. Semua endpoint yang terkunci kini bisa diakses
+  version: 1.0.0
+  contact:
+    name: Kelompok Web Service
+
+servers:
+  - url: http://localhost:8000/api
+    description: Local Development Server
+
+tags:
+  - name: Authentication
+    description: Register, Login, dan Logout
+  - name: Recipes
+    description: CRUD Resep Masakan
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "Masukkan token dari response Login/Register. Format: Bearer {token}"
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: Chef Budi
+        email:
+          type: string
+          format: email
+          example: chefbudi@example.com
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-06-05T10:00:00.000000Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2025-06-05T10:00:00.000000Z"
+
+    Recipe:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: Nasi Goreng Spesial
+        description:
+          type: string
+          example: Nasi goreng dengan bumbu rahasia turun-temurun.
+        ingredients:
+          type: string
+          example: "2 piring nasi putih, 2 butir telur, kecap manis, bawang putih, bawang merah, cabai"
+        cooking_steps:
+          type: string
+          example: "1. Tumis bawang putih dan bawang merah hingga harum. 2. Masukkan nasi, aduk rata. 3. Tambahkan kecap dan garam. 4. Masukkan telur, orak-arik hingga matang."
+        cooking_time:
+          type: integer
+          description: Waktu memasak dalam menit
+          example: 15
+        category:
+          type: string
+          example: Makanan Utama
+        image_url:
+          type: string
+          nullable: true
+          example: "http://localhost:8000/storage/recipes/1717500000_rendang.jpg"
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-06-05T10:00:00.000000Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2025-06-05T10:00:00.000000Z"
+
+    AuthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Login berhasil.
+        data:
+          type: object
+          properties:
+            user:
+              $ref: '#/components/schemas/User'
+            token:
+              type: string
+              example: "1|abc123xyz456def789..."
+            token_type:
+              type: string
+              example: Bearer
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Operasi berhasil.
+        data:
+          type: object
+
+    ErrorValidation:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: Validasi gagal.
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          example:
+            title: ["Judul resep wajib diisi."]
+            image: ["File yang diunggah harus berupa gambar."]
+
+    Error401:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Unauthenticated.
+
+    Error404:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: Data tidak ditemukan.
+
+paths:
+  /register:
+    post:
+      tags:
+        - Authentication
+      summary: Register User Baru
+      description: Mendaftarkan pengguna baru dan langsung menghasilkan token API.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password, password_confirmation]
+              properties:
+                name:
+                  type: string
+                  example: Chef Budi
+                email:
+                  type: string
+                  format: email
+                  example: chefbudi@example.com
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  example: password123
+                password_confirmation:
+                  type: string
+                  format: password
+                  example: password123
+      responses:
+        '201':
+          description: Registrasi berhasil
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+              example:
+                success: true
+                message: "Registrasi berhasil. Silakan simpan token Anda."
+                data:
+                  user:
+                    id: 1
+                    name: Chef Budi
+                    email: chefbudi@example.com
+                    created_at: "2025-06-05T10:00:00.000000Z"
+                    updated_at: "2025-06-05T10:00:00.000000Z"
+                  token: "1|abc123xyz456..."
+                  token_type: Bearer
+        '422':
+          description: Validasi gagal (email duplikat, password tidak cocok, dll)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorValidation'
+
+  /login:
+    post:
+      tags:
+        - Authentication
+      summary: Login User
+      description: Masuk ke sistem menggunakan email dan password untuk mendapatkan token API.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: chefbudi@example.com
+                password:
+                  type: string
+                  format: password
+                  example: password123
+      responses:
+        '200':
+          description: Login berhasil
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+              example:
+                success: true
+                message: Login berhasil.
+                data:
+                  user:
+                    id: 1
+                    name: Chef Budi
+                    email: chefbudi@example.com
+                  token: "2|def456ghi789..."
+                  token_type: Bearer
+        '422':
+          description: Kredensial tidak cocok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorValidation'
+              example:
+                success: false
+                message: Validasi gagal.
+                errors:
+                  email: ["Kredensial yang diberikan tidak cocok dengan data kami."]
+
+  /logout:
+    post:
+      tags:
+        - Authentication
+      summary: Logout User
+      description: Mencabut (revoke) token API yang sedang digunakan sehingga tidak bisa dipakai lagi.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Logout berhasil, token dicabut
+          content:
+            application/json:
+              example:
+                success: true
+                message: "Logout berhasil. Token telah dicabut."
+                data: null
+        '401':
+          description: Token tidak valid atau tidak disertakan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error401'
+
+  /user:
+    get:
+      tags:
+        - Authentication
+      summary: Get Data User Login
+      description: Mengambil data profil user yang sedang login berdasarkan token.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Data user berhasil diambil
+          content:
+            application/json:
+              example:
+                success: true
+                message: Data user berhasil diambil.
+                data:
+                  id: 1
+                  name: Chef Budi
+                  email: chefbudi@example.com
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error401'
+
+  /recipes:
+    get:
+      tags:
+        - Recipes
+      summary: Get All Recipes
+      description: Mengambil daftar semua resep masakan, diurutkan dari yang terbaru.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Daftar resep berhasil diambil
+          content:
+            application/json:
+              example:
+                success: true
+                message: Data resep berhasil diambil.
+                data:
+                  - id: 1
+                    title: Nasi Goreng Spesial
+                    description: Nasi goreng bumbu rahasia
+                    ingredients: "2 piring nasi, 2 telur, kecap manis"
+                    cooking_steps: "1. Tumis bumbu. 2. Masukkan nasi."
+                    cooking_time: 15
+                    category: Makanan Utama
+                    image_url: "http://localhost:8000/storage/recipes/1717500000_nasi.jpg"
+                    created_at: "2025-06-05T10:00:00.000000Z"
+                    updated_at: "2025-06-05T10:00:00.000000Z"
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error401'
+
+    post:
+      tags:
+        - Recipes
+      summary: Create Recipe
+      description: |
+        Membuat resep baru. Gunakan `multipart/form-data` karena mendukung upload gambar.
+        
+        Field `image` bersifat opsional. Jika diisi, harus berupa file gambar (jpeg/png/jpg/gif) dengan ukuran maksimal 2MB.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [title, description, ingredients, cooking_steps, cooking_time, category]
+              properties:
+                title:
+                  type: string
+                  maxLength: 255
+                  example: Rendang Daging Sapi
+                description:
+                  type: string
+                  example: Rendang khas Minang yang gurih dan kaya rempah.
+                ingredients:
+                  type: string
+                  example: "500gr daging sapi, 200ml santan, bumbu rendang (serai, lengkuas, cabai merah)"
+                cooking_steps:
+                  type: string
+                  example: "1. Haluskan bumbu. 2. Tumis bumbu hingga harum. 3. Masukkan daging. 4. Tambahkan santan. 5. Masak hingga kering."
+                cooking_time:
+                  type: integer
+                  minimum: 1
+                  example: 180
+                category:
+                  type: string
+                  maxLength: 100
+                  example: Makanan Utama
+                image:
+                  type: string
+                  format: binary
+                  description: "File gambar (jpeg/png/jpg/gif, maks 2MB) - opsional"
+      responses:
+        '201':
+          description: Resep berhasil dibuat
+          content:
+            application/json:
+              example:
+                success: true
+                message: Resep berhasil dibuat.
+                data:
+                  id: 2
+                  title: Rendang Daging Sapi
+                  description: Rendang khas Minang yang gurih dan kaya rempah.
+                  ingredients: "500gr daging sapi, 200ml santan, bumbu rendang"
+                  cooking_steps: "1. Haluskan bumbu. 2. Tumis. 3. Masak hingga kering."
+                  cooking_time: 180
+                  category: Makanan Utama
+                  image_url: "http://localhost:8000/storage/recipes/1717500001_rendang.jpg"
+                  created_at: "2025-06-05T10:05:00.000000Z"
+                  updated_at: "2025-06-05T10:05:00.000000Z"
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error401'
+        '422':
+          description: Validasi gagal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorValidation'
+              example:
+                success: false
+                message: Validasi gagal.
+                errors:
+                  title: ["Judul resep wajib diisi."]
+                  image: ["File yang diunggah harus berupa gambar."]
+
+  /recipes/{id}:
+    get:
+      tags:
+        - Recipes
+      summary: Get Detail Recipe
+      description: Mengambil detail satu resep berdasarkan ID.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID resep
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '200':
+          description: Detail resep berhasil diambil
+          content:
+            application/json:
+              example:
+                success: true
+                message: Detail resep berhasil diambil.
+                data:
+                  id: 1
+                  title: Nasi Goreng Spesial
+                  description: Nasi goreng bumbu rahasia
+                  ingredients: "2 piring nasi, 2 telur, kecap manis"
+                  cooking_steps: "1. Tumis bumbu. 2. Masukkan nasi."
+                  cooking_time: 15
+                  category: Makanan Utama
+                  image_url: "http://localhost:8000/storage/recipes/1717500000_nasi.jpg"
+                  created_at: "2025-06-05T10:00:00.000000Z"
+                  updated_at: "2025-06-05T10:00:00.000000Z"
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error401'
+        '404':
+          description: Resep tidak ditemukan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error404'
+
+    put:
+      tags:
+        - Recipes
+      summary: Update Recipe
+      description: |
+        Memperbarui data resep. Semua field bersifat opsional (`sometimes`) — hanya kirim field yang ingin diubah.
+        
+        Jika field `image` diisi dengan gambar baru, gambar lama akan **otomatis dihapus** dari server.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID resep yang ingin diupdate
+          schema:
+            type: integer
+            example: 1
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  maxLength: 255
+                  example: Nasi Goreng Spesial Pedas
+                description:
+                  type: string
+                  example: Versi pedas dari nasi goreng spesial.
+                ingredients:
+                  type: string
+                  example: "2 piring nasi, 2 telur, kecap manis, 5 cabai rawit"
+                cooking_steps:
+                  type: string
+                  example: "1. Tumis bumbu + cabai. 2. Masukkan nasi. 3. Orak-arik telur."
+                cooking_time:
+                  type: integer
+                  minimum: 1
+                  example: 20
+                category:
+                  type: string
+                  maxLength: 100
+                  example: Makanan Utama
+                image:
+                  type: string
+                  format: binary
+                  description: "Gambar baru (opsional). Jika diisi, gambar lama otomatis terhapus."
+      responses:
+        '200':
+          description: Resep berhasil diupdate
+          content:
+            application/json:
+              example:
+                success: true
+                message: Resep berhasil diperbarui.
+                data:
+                  id: 1
+                  title: Nasi Goreng Spesial Pedas
+                  cooking_time: 20
+                  image_url: "http://localhost:8000/storage/recipes/1717500002_nasi_pedas.jpg"
+                  updated_at: "2025-06-05T11:00:00.000000Z"
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error401'
+        '404':
+          description: Resep tidak ditemukan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error404'
+        '422':
+          description: Validasi gagal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorValidation'
+
+    delete:
+      tags:
+        - Recipes
+      summary: Delete Recipe
+      description: Menghapus resep beserta file gambarnya dari server secara permanen.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID resep yang ingin dihapus
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '200':
+          description: Resep berhasil dihapus
+          content:
+            application/json:
+              example:
+                success: true
+                message: Resep berhasil dihapus.
+                data: null
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error401'
+        '404':
+          description: Resep tidak ditemukan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error404'
